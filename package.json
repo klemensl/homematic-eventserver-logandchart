@@ -1,0 +1,16 @@
+{
+  "name": "CCUEventServer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "klemensl",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.10.6",
+    "mysql": "^2.5.4",
+    "sequelize": "~2.1.0"
+  }
+}
