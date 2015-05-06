@@ -1,0 +1,15 @@
+
+syntax: regexp
+^node_modules/sequelize$
+syntax: regexp
+^node_modules/body-parser$
+syntax: regexp
+^node_modules/express$
+syntax: regexp
+^node_modules/multer$
+syntax: regexp
+^node_modules/mysql$
+syntax: regexp
+^node_modules/sequelize$
+syntax: regexp
+^node_modules/xml2js$
