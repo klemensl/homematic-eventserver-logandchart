@@ -42,7 +42,7 @@ Event.findAll().then(function(events) {
 });
 
 
-Event.sync().then(function () {
+Event.sync(true).then(function () {
 	return Event.create({
 		aktor: 'NodeJS',
 		datenpunkt: 'DBPunkt',

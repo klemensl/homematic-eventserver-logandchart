@@ -1,6 +1,8 @@
 /* jshint indent: 2 */
 
 module.exports = function(sequelize, DataTypes) {
+	var moment = require('moment');
+	
 	return sequelize.define('event', { 
 		/*id: {
 			type: DataTypes.INTEGER,
@@ -24,6 +26,26 @@ module.exports = function(sequelize, DataTypes) {
 			defaultValue: DataTypes.NOW,
 			allowNull: false,
 		},
+		tag: {
+			type: DataTypes.STRING,
+			defaultValue: String(moment().format('YYYY-MM-DD')),
+			allowNull: false,
+		},
+		woche: {
+			type: DataTypes.STRING,
+			defaultValue: String(moment().format('ww')),
+			allowNull: false,
+		},
+		monat: {
+			type: DataTypes.STRING,
+			defaultValue: String(moment().format('YYYY-MM')),
+			allowNull: false,
+		},
+		jahr: {
+			type: DataTypes.STRING,
+			defaultValue: String(moment().format('YYYY')),
+			allowNull: false,
+		},		
 		dauer: {
 			type: DataTypes.BIGINT,
 			allowNull: true,
