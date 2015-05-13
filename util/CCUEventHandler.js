@@ -1,78 +1,98 @@
+var parseString = require('xml2js').parseString;
+var request = require('request');
+var moment = require('moment');
+
+var aktorNames = {};
+
 module.exports = {
 		auswertung: function (sequelize, Event, zeitspanne, callback) {
+			if (Object.keys(aktorNames).length === 0) {
+				console.log('Aktoren noch nicht initialisiert...');
+
+				request.get('http://192.168.1.104/config/xmlapi/devicelist.cgi', function (error, response, responseBody) {        
+					if (!error && response.statusCode == 200) {
+						parseString(responseBody, function (err, responseXML) {
+							for (var i in responseXML.deviceList.device) {
+								var channels = responseXML.deviceList.device[i].channel;
+								for (var j in channels) {
+									aktorNames[channels[j].$.address] = channels[j].$.name;
+								}
+							}
+						});
+						
+						console.log(aktorNames);
+					} else {
+						console.log(error);
+					}
+				});
+			}
+
+
 			Event.findAll({
 				attributes: ['aktor', zeitspanne, [sequelize.fn('sum', sequelize.col('dauer')), 'dauer']],
 				group: ['aktor', zeitspanne],
-				limit: 10
+				where: {datenpunkt: 'STATE'},
+				order: [[zeitspanne, 'ASC']]
 			}, { raw: true }).then(function(events) {
-				//console.log(events);
-				
-				/*var labels = [events[0][zeitspanne]];
-				var dataset = {
-						label: events[0].aktor,
-						fillColor: "rgba(151,187,205,0.2)",
-						strokeColor: "rgba(151,187,205,1)",
-						pointColor: "rgba(151,187,205,1)",
-						pointStrokeColor: "#fff",
-						pointHighlightFill: "#fff",
-						pointHighlightStroke: "rgba(151,187,205,1)",
-						data: [events[0].dauer]
-				};
+				console.log(events);
 
-				var data = {
-						labels: [labels],
-						datasets: [dataset]
-				};*/
-				
 				var labels = [];
-				var datasetLabels = [];
+				var datasetTitles = [];
 				//var datasetData = [];
 				for (var i in events) {
 					var event = events[i];
 					console.log(event);
-					
+
 					if (labels.indexOf(event[zeitspanne]) == -1) {
 						labels.push(event[zeitspanne]);
 					}
-					
-					if (datasetLabels.indexOf(event.aktor) == -1) {
-						datasetLabels.push(event.aktor);
+
+					var aktorName = aktorNames[event.aktor] != undefined ? aktorNames[event.aktor] : event.aktor;
+					if (datasetTitles.indexOf(aktorName) == -1) {
+						datasetTitles.push(aktorName);
 					}
-					
+
 					/* "0" er fehlen am Ende vom Dataset, wenn der Aktor an den Tagen nicht Eingesetzt wurde... evtl eh OK
 					if (datasetData.indexOf(event.aktor) == -1) {
 						datasetData.push(event.aktor);
 						datasetData[event.aktor] = {data: []};
-						
+
 						for (var j in labels) {
 							datasetData[event.aktor].data.push(0);
 						}
 					}
-					
+
 					datasetData[event.aktor].data[labels.indexOf(event[zeitspanne])] = event.dauer;*/
 				}
 
 				var datasetData = [];
 				for (var i in events) {
 					var event = events[i];
-					
-					if (datasetData.indexOf(event.aktor) == -1) {
-						datasetData.push(event.aktor);
-						datasetData[event.aktor] = {data: []};
-						
+
+					var aktorName = aktorNames[event.aktor] != undefined ? aktorNames[event.aktor] : event.aktor;
+					if (datasetData.indexOf(aktorName) == -1) {
+						datasetData.push(aktorName);
+						datasetData[aktorName] = {data: []};
+
 						for (var j in labels) {
-							datasetData[event.aktor].data.push(0);
+							datasetData[aktorName].data.push(0);
 						}
 					}
-					
-					datasetData[event.aktor].data[labels.indexOf(event[zeitspanne])] = event.dauer;
+
+					datasetData[aktorName].data[labels.indexOf(event[zeitspanne])] = Math.round(event.dauer / 60 / 60 * 10) / 10;
 				}
-				
+
 				var datasets = [];
-				for (var i in datasetLabels) {
+				for (var i in datasetTitles) {
 					datasets.push({
-						label: datasetLabels[i],
-						data: datasetData[datasetLabels[i]]
+						title: datasetTitles[i], //'title' in ChartNew.js und 'label' Charts.js
+						data: datasetData[datasetTitles[i]].data,
+						fillColor: "rgba(151,187,205,0.2)",
+						strokeColor: "rgba(151,187,205,1)",
+						pointColor: "rgba(151,187,205,1)",
+						pointStrokeColor: "#fff",
+						pointHighlightFill: "#fff",
+						pointHighlightStroke: "rgba(151,187,205,1)"
 					});
 				}
 
@@ -80,6 +100,7 @@ module.exports = {
 						labels: labels,
 						datasets: datasets
 				};
+
 				callback(resultObject);
 			});
 		},
@@ -112,5 +133,57 @@ module.exports = {
 			dataObject.wert = params.param[3].value[0].boolean;
 
 			return dataObject;
+		},
+
+		handleEvent: function(Event, dataObject, callBack) {
+			Event.findOne({ where: {aktor: dataObject.aktor, datenpunkt: dataObject.datenpunkt}, order: 'timestamp DESC'}).then(function(event) {
+				if ((event == null) || ((event != null) && (event.wert != dataObject.wert) && (dataObject.wert == '1'))) {
+					Event.create({
+						aktor: String(dataObject.aktor),
+						datenpunkt: String(dataObject.datenpunkt),
+						wert: String(dataObject.wert),
+						dauer: '0',
+						tag: String(moment().format('YYYY-MM-DD')),
+						woche: String(moment().format('ww')),
+						monat: String(moment().format('YYYY-MM')),
+						jahr: String(moment().format('YYYY'))
+					}).then(function(event){
+						console.log('Event created!');
+						callBack('<?xml version="1.0"?><methodResponse><params><param><value>Event stored!</value></param></params></methodResponse>');
+					});
+				} else if ((event != null) && (event.wert == dataObject.wert)) {
+					console.log('Duplicate Event, NOT stored!');
+					callBack('<?xml version="1.0"?><methodResponse><params><param><value>Duplicate Event, NOT stored!</value></param></params></methodResponse>');
+				} else if (dataObject.wert == '0') {
+					Event.findOne({ where: {aktor: dataObject.aktor, datenpunkt: dataObject.datenpunkt, wert: '1'}, order: 'timestamp DESC'}).then(function(event) {
+						if (event == null) {
+							console.log('No matching ON event found, NOT stored!');
+							callBack('<?xml version="1.0"?><methodResponse><params><param><value>No matching ON event found, NOT stored!</value></param></params></methodResponse>');
+						} else {
+							console.log(event.get({
+								plain: true
+							}));
+
+							var onTimeStamp = event.timestamp;
+							console.log(onTimeStamp);
+							var diff = Math.abs(new Date() - onTimeStamp) / 1000;
+
+							Event.create({
+								aktor: String(dataObject.aktor),
+								datenpunkt: String(dataObject.datenpunkt),
+								wert: String(dataObject.wert),
+								dauer: String(diff),
+								tag: String(moment().format('YYYY-MM-DD')),
+								woche: String(moment().format('ww')),
+								monat: String(moment().format('YYYY-MM')),
+								jahr: String(moment().format('YYYY'))
+							}).then(function(event){
+								console.log('Event created!');
+								callBack('<?xml version="1.0"?><methodResponse><params><param><value>Event stored!</value></param></params></methodResponse>');
+							});
+						}
+					});
+				}
+			});
 		}
 };
