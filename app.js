@@ -25,18 +25,34 @@ app.post('/init', function (req, res) {
 	res.send('OK!');
 });
 
-app.get('/auswertung/tag', function (req, res) {
+app.get('/auswertung/sum/tag', function (req, res) {
 	console.log('Content-Type: ' + req.get('Content-Type'));
 	
-	ccuEventHandler.auswertung(sequelize, Event, 'tag', function(data) {
+	ccuEventHandler.auswertung(sequelize, Event, 'tag', 'sum', function(data) {
 		res.send(data);
 	});
 });
 
-app.get('/auswertung/monat', function (req, res) {
+app.get('/auswertung/sum/monat', function (req, res) {
 	console.log('Content-Type: ' + req.get('Content-Type'));
 	
-	ccuEventHandler.auswertung(sequelize, Event, 'monat', function(data) {
+	ccuEventHandler.auswertung(sequelize, Event, 'monat', 'sum', function(data) {
+		res.send(data);
+	});
+});
+
+app.get('/auswertung/avg/tag', function (req, res) {
+	console.log('Content-Type: ' + req.get('Content-Type'));
+	
+	ccuEventHandler.auswertung(sequelize, Event, 'tag', 'avg', function(data) {
+		res.send(data);
+	});
+});
+
+app.get('/auswertung/avg/monat', function (req, res) {
+	console.log('Content-Type: ' + req.get('Content-Type'));
+	
+	ccuEventHandler.auswertung(sequelize, Event, 'monat', 'avg', function(data) {
 		res.send(data);
 	});
 });

@@ -4,105 +4,118 @@ var moment = require('moment');
 
 var aktorNames = {};
 
-module.exports = {
-		auswertung: function (sequelize, Event, zeitspanne, callback) {
-			if (Object.keys(aktorNames).length === 0) {
-				console.log('Aktoren noch nicht initialisiert...');
+function initializeAktorNames() {
+	if (Object.keys(aktorNames).length === 0) {
+		console.log('Aktoren noch nicht initialisiert...');
 
-				request.get('http://192.168.1.104/config/xmlapi/devicelist.cgi', function (error, response, responseBody) {        
-					if (!error && response.statusCode == 200) {
-						parseString(responseBody, function (err, responseXML) {
-							for (var i in responseXML.deviceList.device) {
-								var channels = responseXML.deviceList.device[i].channel;
-								for (var j in channels) {
-									aktorNames[channels[j].$.address] = channels[j].$.name;
-								}
-							}
-						});
-						
-						console.log(aktorNames);
-					} else {
-						console.log(error);
+		request.get('http://192.168.1.104/config/xmlapi/devicelist.cgi', function (error, response, responseBody) {        
+			if (!error && response.statusCode == 200) {
+				parseString(responseBody, function (err, responseXML) {
+					for (var i in responseXML.deviceList.device) {
+						var channels = responseXML.deviceList.device[i].channel;
+						for (var j in channels) {
+							aktorNames[channels[j].$.address] = channels[j].$.name;
+						}
 					}
 				});
+
+				console.log(aktorNames);
+			} else {
+				console.log(error);
 			}
+		});
+	}
+}
 
 
-			Event.findAll({
-				attributes: ['aktor', zeitspanne, [sequelize.fn('sum', sequelize.col('dauer')), 'dauer']],
-				group: ['aktor', zeitspanne],
-				where: {datenpunkt: 'STATE'},
-				order: [[zeitspanne, 'ASC']]
-			}, { raw: true }).then(function(events) {
-				console.log(events);
+function createChartDataFrom(events, zeitspanne) {
+	initializeAktorNames();
 
-				var labels = [];
-				var datasetTitles = [];
-				//var datasetData = [];
-				for (var i in events) {
-					var event = events[i];
-					console.log(event);
+	console.log("Event, gruppiert nach: " + zeitspanne);
+	console.log(events);
 
-					if (labels.indexOf(event[zeitspanne]) == -1) {
-						labels.push(event[zeitspanne]);
-					}
+	var labels = [];
+	var datasetTitles = [];
+	for (var i in events) {
+		var event = events[i];
+		console.log(event);
 
-					var aktorName = aktorNames[event.aktor] != undefined ? aktorNames[event.aktor] : event.aktor;
-					if (datasetTitles.indexOf(aktorName) == -1) {
-						datasetTitles.push(aktorName);
-					}
+		if (labels.indexOf(event[zeitspanne]) == -1) {
+			labels.push(event[zeitspanne]);
+		}
 
-					/* "0" er fehlen am Ende vom Dataset, wenn der Aktor an den Tagen nicht Eingesetzt wurde... evtl eh OK
-					if (datasetData.indexOf(event.aktor) == -1) {
-						datasetData.push(event.aktor);
-						datasetData[event.aktor] = {data: []};
+		var aktorName = aktorNames[event.aktor] != undefined ? aktorNames[event.aktor] : event.aktor;
+		if (datasetTitles.indexOf(aktorName) == -1) {
+			datasetTitles.push(aktorName);
+		}
+	}
 
-						for (var j in labels) {
-							datasetData[event.aktor].data.push(0);
-						}
-					}
+	var datasetData = [];
+	for (var i in events) {
+		var event = events[i];
 
-					datasetData[event.aktor].data[labels.indexOf(event[zeitspanne])] = event.dauer;*/
-				}
+		var aktorName = aktorNames[event.aktor] != undefined ? aktorNames[event.aktor] : event.aktor;
+		if (datasetData.indexOf(aktorName) == -1) {
+			datasetData.push(aktorName);
+			datasetData[aktorName] = {data: []};
 
-				var datasetData = [];
-				for (var i in events) {
-					var event = events[i];
+			for (var j in labels) {
+				datasetData[aktorName].data.push(0);
+			}
+		}
 
-					var aktorName = aktorNames[event.aktor] != undefined ? aktorNames[event.aktor] : event.aktor;
-					if (datasetData.indexOf(aktorName) == -1) {
-						datasetData.push(aktorName);
-						datasetData[aktorName] = {data: []};
+		datasetData[aktorName].data[labels.indexOf(event[zeitspanne])] = Math.round(event.dauer / 60 / 60 * 10) / 10;
+	}
 
-						for (var j in labels) {
-							datasetData[aktorName].data.push(0);
-						}
-					}
+	var datasets = [];
+	for (var i in datasetTitles) {
+		datasets.push({
+			title: datasetTitles[i], //'title' in ChartNew.js und 'label' Charts.js
+			data: datasetData[datasetTitles[i]].data,
+			fillColor: "rgba(151,187,205,0.2)",
+			strokeColor: "rgba(151,187,205,1)",
+			pointColor: "rgba(151,187,205,1)",
+			pointStrokeColor: "#fff",
+			pointHighlightFill: "#fff",
+			pointHighlightStroke: "rgba(151,187,205,1)"
+		});
+	}
 
-					datasetData[aktorName].data[labels.indexOf(event[zeitspanne])] = Math.round(event.dauer / 60 / 60 * 10) / 10;
-				}
+	var resultObject = {
+			labels: labels,
+			datasets: datasets
+	};
 
-				var datasets = [];
-				for (var i in datasetTitles) {
-					datasets.push({
-						title: datasetTitles[i], //'title' in ChartNew.js und 'label' Charts.js
-						data: datasetData[datasetTitles[i]].data,
-						fillColor: "rgba(151,187,205,0.2)",
-						strokeColor: "rgba(151,187,205,1)",
-						pointColor: "rgba(151,187,205,1)",
-						pointStrokeColor: "#fff",
-						pointHighlightFill: "#fff",
-						pointHighlightStroke: "rgba(151,187,205,1)"
-					});
-				}
+	return resultObject;
+}
 
-				var resultObject = {
-						labels: labels,
-						datasets: datasets
-				};
-
-				callback(resultObject);
-			});
+module.exports = {
+		auswertung: function (sequelize, Event, zeitspanne, sumOrAverage, callback) {
+			if (sumOrAverage == 'avg') {
+				sequelize.query(
+						'SELECT sub.aktor as aktor, sub.monat as monat, avg(sumdauer) as dauer FROM (SELECT aktor, monat, tag, sum(dauer) as sumdauer FROM ccu.event WHERE datenpunkt = "STATE" GROUP BY aktor, tag) sub GROUP BY sub.aktor ORDER BY monat ASC, dauer DESC',
+						Event,
+						{raw: true}
+				).then(function (events) {
+					callback(createChartDataFrom(events, zeitspanne));
+				});
+			} else if (sumOrAverage == 'sum') {
+				/*Event.findAll({
+					attributes: ['aktor', zeitspanne, [sequelize.fn('sum', sequelize.col('dauer')), 'dauer']],
+					group: ['aktor', zeitspanne],
+					where: {datenpunkt: 'STATE'},
+					order: [[zeitspanne, 'ASC'], ['dauer', 'DESC']]
+				}, { raw: true }).then(function(events) {
+					callback(createChartDataFrom(events, zeitspanne));
+				});*/
+				sequelize.query(
+						'SELECT aktor, ' + zeitspanne + ', sum(dauer) AS dauer FROM ccu.event WHERE datenpunkt = "STATE" GROUP BY aktor, ' + zeitspanne + ' ORDER BY ' + zeitspanne + ', dauer DESC',
+						Event,
+						{raw: true}
+				).then(function (events) {
+					callback(createChartDataFrom(events, zeitspanne));
+				});
+			}
 		},
 
 		extractDataFromMultiCall: function(requestBody) {
