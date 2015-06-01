@@ -82,8 +82,8 @@ function createChartDataFrom(events, zeitspanne) {
 	}
 
 	var resultObject = {
-			labels: labels,
-			datasets: datasets
+		labels: labels,
+		datasets: datasets
 	};
 
 	return resultObject;
@@ -91,31 +91,26 @@ function createChartDataFrom(events, zeitspanne) {
 
 module.exports = {
 		auswertung: function (sequelize, Event, zeitspanne, sumOrAverage, callback) {
+			var query = '';
+			
 			if (sumOrAverage == 'avg') {
-				sequelize.query(
-						'SELECT sub.aktor as aktor, sub.monat as monat, avg(sumdauer) as dauer FROM (SELECT aktor, monat, tag, sum(dauer) as sumdauer FROM ccu.event WHERE datenpunkt = "STATE" GROUP BY aktor, tag) sub GROUP BY sub.aktor ORDER BY monat ASC, dauer DESC',
-						Event,
-						{raw: true}
-				).then(function (events) {
-					callback(createChartDataFrom(events, zeitspanne));
-				});
+				query = 'SELECT sub.aktor as aktor, sub.monat as monat, avg(sumdauer) as dauer FROM (SELECT aktor, monat, tag, sum(dauer) as sumdauer FROM ccu.event WHERE datenpunkt = "STATE" and monat = "' + String(moment().format('YYYY-MM')) + '" GROUP BY aktor, tag) sub GROUP BY sub.aktor ORDER BY monat ASC, dauer DESC';
 			} else if (sumOrAverage == 'sum') {
-				/*Event.findAll({
-					attributes: ['aktor', zeitspanne, [sequelize.fn('sum', sequelize.col('dauer')), 'dauer']],
-					group: ['aktor', zeitspanne],
-					where: {datenpunkt: 'STATE'},
-					order: [[zeitspanne, 'ASC'], ['dauer', 'DESC']]
-				}, { raw: true }).then(function(events) {
-					callback(createChartDataFrom(events, zeitspanne));
-				});*/
-				sequelize.query(
-						'SELECT aktor, ' + zeitspanne + ', sum(dauer) AS dauer FROM ccu.event WHERE datenpunkt = "STATE" GROUP BY aktor, ' + zeitspanne + ' ORDER BY ' + zeitspanne + ', dauer DESC',
-						Event,
-						{raw: true}
-				).then(function (events) {
-					callback(createChartDataFrom(events, zeitspanne));
-				});
+				if (zeitspanne == 'tag') {
+					query = 'SELECT aktor, tag, sum(dauer) AS dauer FROM ccu.event WHERE datenpunkt = "STATE" AND tag >= "' + String(moment().subtract(14, 'days').format('YYYY-MM-DD')) + '" GROUP BY aktor, tag ORDER BY tag';
+				} else {
+					query = 'SELECT aktor, monat, sum(dauer) AS dauer FROM ccu.event WHERE datenpunkt = "STATE" AND monat = "' + String(moment().format('YYYY-MM')) + '" GROUP BY aktor, monat ORDER BY monat, dauer DESC';
+				}
+				
 			}
+			
+			sequelize.query(
+					query,
+					Event,
+					{raw: true}
+			).then(function (events) {
+				callback(createChartDataFrom(events, zeitspanne));
+			});
 		},
 
 		extractDataFromMultiCall: function(requestBody) {
